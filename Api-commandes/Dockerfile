@@ -15,7 +15,7 @@ RUN npm install --production
 COPY . .
 
 # Expose le port (utilise la variable d'environnement PORT si définie)
-EXPOSE 4000
+EXPOSE 4001
 
 # Commande de démarrage
 CMD [ "npm", "start" ]

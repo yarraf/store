@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  produit-api:
+    image: arrafyouness/api-produit:latest
+    ports:
+      - "4000:4000"
+    networks:
+      - micro_net
+
+  commande-api:
+    build:
+      context: ./api-commande
+    image: arrafyouness/api-commande:v1.0
+    ports:
+      - "4001:4001"
+    networks:
+      - micro_net
+
+networks:
+  micro_net:
+    driver: bridge

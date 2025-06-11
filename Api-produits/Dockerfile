@@ -1,5 +1,6 @@
 # Utilise une image Node officielle
-FROM node:22
+#use node version alpine : Le mot alpine signifie que tu utilises une image Node.js basée sur Alpine Linux.
+FROM node:22-alpine
 
 # Crée le dossier de l'app
 WORKDIR /usr/src/app
