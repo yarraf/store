@@ -1,70 +1,90 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const axios = require('axios');
 require('dotenv').config();
-const app = express();
 
+const app = express();
 app.use(express.json());
 
-// Exemple de données en mémoire
-let commandes = [
-    { id: 1, produit: 1, quantite: 2, statut: 'en attente' },
-    { id: 2, produit: 2, quantite: 5, statut: 'expédiée' }
-];
+// ----- Connexion MongoDB -----
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('Connecté à MongoDB'))
+  .catch((err) => console.error('Erreur MongoDB :', err));
 
-// Obtenir toutes les commandes
-app.get('/commandes', (req, res) => {
-    res.json(commandes);
+// ----- Schéma et modèle Mongoose -----
+const commandeSchema = new mongoose.Schema({
+  produitId:     { type: mongoose.Schema.Types.ObjectId, ref: 'Produit', required: true },
+  quantite:      { type: Number, required: true },
+  prixTotal:     { type: Number, required: true },
+  statut:        { type: String, enum: ['en attente', 'expédiée', 'livrée', 'annulée'], default: 'en attente' },
+  clientNom:     { type: String, required: true },
+  clientEmail:   { type: String, required: true },
+  dateCommande:  { type: Date, default: Date.now }
 });
 
-// Obtenir une commande par ID
-app.get('/commandes/:id', (req, res) => {
-    const commande = commandes.find(c => c.id === parseInt(req.params.id));
-    if (!commande) return res.status(404).json({ message: 'Commande non trouvée' });
-    res.json(commande);
+const Commande = mongoose.model('Commande', commandeSchema);
+
+// ----- Routes -----
+
+// GET /commandes - liste toutes les commandes
+app.get('/commandes', async (req, res) => {
+  const commandes = await Commande.find();
+  res.json(commandes);
 });
 
-// Créer une nouvelle commande
+// GET /commandes/:id - récupère une commande par ID
+app.get('/commandes/:id', async (req, res) => {
+  const commande = await Commande.findById(req.params.id);
+  if (!commande) return res.status(404).json({ message: 'Commande non trouvée' });
+  res.json(commande);
+});
+
+// POST /commandes - crée une nouvelle commande
 app.post('/commandes', async (req, res) => {
-      try {
-    const { produitId, qte, statut } = req.body;
-    console.log('Produit PORT: ' + process.env.PORT_API_PRODUIT + ' produitId: ' + produitId + ' qte: ' + qte + ' statut: ' + statut);
-    const response = await axios.get(`http://localhost:${process.env.PORT_API_PRODUIT}/produits/${produitId}`);
+  try {
+    const { produitId, quantite, statut, clientNom, clientEmail } = req.body;
+
+    // Appel vers Api-produits pour récupérer le prix
+    const response = await axios.get(`http://produit-api:${process.env.PORT_API_PRODUIT}/produits/${produitId}`);
     const produit = response.data;
-    console.log('Produit price: ' + produit.prix);
-    if(!produit) return res.status(404).json({ message: 'Produit non trouvé' });
-    const nouvelleCommande = {
-        id: commandes.length + 1,       
-        prixTotal : produit.prix * qte,
-        statut: statut,       
-    };
-    commandes.push(nouvelleCommande);
-    res.status(201).json(nouvelleCommande);
- } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
 
+    const commande = new Commande({
+      produitId,
+      quantite,
+      prixTotal: produit.prix * quantite,
+      statut,
+      clientNom,
+      clientEmail
+    });
+
+    await commande.save();
+    res.status(201).json(commande);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
-// Mettre à jour une commande
-app.put('/commandes/:id', (req, res) => {
-    const commande = commandes.find(c => c.id === parseInt(req.params.id));
-    if (!commande) return res.status(404).json({ message: 'Commande non trouvée' });
-    commande.produit = req.body.produit || commande.produit;
-    commande.quantite = req.body.quantite || commande.quantite;
-    commande.statut = req.body.statut || commande.statut;
-    res.json(commande);
+// PUT /commandes/:id - met à jour une commande
+app.put('/commandes/:id', async (req, res) => {
+  const { quantite, statut, clientNom, clientEmail } = req.body;
+  const commande = await Commande.findByIdAndUpdate(
+    req.params.id,
+    { quantite, statut, clientNom, clientEmail },
+    { new: true }
+  );
+  if (!commande) return res.status(404).json({ message: 'Commande non trouvée' });
+  res.json(commande);
 });
 
-// Supprimer une commande
-app.delete('/commandes/:id', (req, res) => {
-    const index = commandes.findIndex(c => c.id === parseInt(req.params.id));
-    if (index === -1) return res.status(404).json({ message: 'Commande non trouvée' });
-    commandes.splice(index, 1);
-    res.status(204).send();
+// DELETE /commandes/:id - supprime une commande
+app.delete('/commandes/:id', async (req, res) => {
+  const commande = await Commande.findByIdAndDelete(req.params.id);
+  if (!commande) return res.status(404).json({ message: 'Commande non trouvée' });
+  res.status(204).send();
 });
 
-// Démarrer le serveur
-const PORT = process.env.PORT;
+// ----- Démarrage -----
+const PORT = process.env.PORT || 4001;
 app.listen(PORT, () => {
-    console.log(`Serveur démarré sur le port ${PORT}`);
+  console.log(`API Commandes démarrée sur le port ${PORT}`);
 });

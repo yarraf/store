@@ -1,21 +1,59 @@
-version: '3.8'
-
 services:
+
+  mongodb:
+    image: mongo:7
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - micro_net
+
   produit-api:
+    build:
+      context: ./Api-produits
     image: arrafyouness/api-produit:latest
     ports:
       - "4000:4000"
+    environment:
+      - PORT=4000
+      - MONGO_URI=mongodb://mongodb:27017/store
+    depends_on:
+      - mongodb
+    networks:
+      - micro_net
+
+  front-produits:
+    build:
+      context: ./front-produits
+    ports:
+      - "5173:3000"
+    environment:
+      - API_URL=http://produit-api:4000
+    depends_on:
+      - produit-api
     networks:
       - micro_net
 
   commande-api:
     build:
-      context: ./api-commande
+      context: ./Api-commandes
     image: arrafyouness/api-commande:v1.0
     ports:
       - "4001:4001"
+    environment:
+      - PORT=4001
+      - PORT_API_PRODUIT=4000
+      - MONGO_URI=mongodb://mongodb:27017/store
+    depends_on:
+      - mongodb
+      - produit-api
     networks:
       - micro_net
+
+volumes:
+  mongo_data:
 
 networks:
   micro_net:
